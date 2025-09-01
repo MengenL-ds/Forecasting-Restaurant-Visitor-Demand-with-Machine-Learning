@@ -24,25 +24,40 @@ Data spans from January of 2016 until April of 2017 for training, with the test 
 
 ##  Methodology
 
-1. **Feature Engineering**  
-   - Aggregated daily visitors per store.  
-   - Generated lag features (1d, 7d, 14d, 28d) and global rolling means.  
-   - Included calendar features: month, day-of-week, holiday flags.  
+1. **Exploratory Data Analysis (EDA)**
+	- Explored temporal patterns: weekly and monthly trends, holiday spikes, seasonality
+	- Analyzed store level differences (genres, areas, traffic intensity)
+	- Identified Golden Week effect and missing days due to closures.
+	- Visualized correlations between reservations (HPG) and actual visits (AIR)
 
-2. **Baseline Models**  
+2. **Feature Engineering**  
+- For ML model (lightgbm):
+	- Lag Features: visitors_lag1, lag7, lag14, lag28, rolling averages (7d, 14d).
+	- Global Signals: rolling means of total daily visitors across Japan.
+	- Calendar Features: month, weekday, weekend and holiday flag.
+	- Categorical Encoding: OneHotEncoded store_id (specially important for per-store model).  
+
+3. **Baseline Models**  
    - *Naïve lag-1*: predict today = yesterday.  
    - *Last-7 mean*: predict using the average of the previous week.
 
-3. **Nested Evaluation Strategies**  
-   - **Statistical**: ARIMA / SARIMAX optimized with minimalistic walk-forward forecasting.  
-   - **Machine Learning**:  
-     - Trained LightGBM models using per-store OHE, lags, and calendar features.  
-     - Evaluated with chronological train-test splits and weekly-aggregated plots for clarity.  
-     - Implemented hyperparameter tuning via `RandomizedSearchCV` with `TimeSeriesSplit`.
+_NOTE: These provide simple benchmarks that any advanced model should outperform._
 
-4. **Leakage Checks**  
-   - Ensured lag features are properly shifted (no leakage of future data).  
-   - Proper train-test splits per store and per model to prevent any lookahead bias.
+4. **Statistical Models**
+   - ARIMA: captures trend + autocorrelation.
+	- SARIMAX: extends ARIMA with seasonal cycles (7-day) + external regressors (holidays).
+	- Fitted using walk-forward validation to avoid leakage.
+
+5. **Machine Learning Models**
+   - LightGBM Global Model: single model across all stores (with OHE for store ID)
+      - Used RandomizedSearchCV with TimeSeriesSplit for hyperparameter optimization.
+   - LightGBM Per-Store Model: identity encoded, per-store chronological splits.
+      - Since model generalizes very well, no hyperparameter optimization was needed
+   
+6. **Leakage Checks**  
+   - All lag features shifted by at least 1 day (no future info).
+	- Chronological splits only (no random CV).
+	- Per store splits ensure a store never "sees" its own future test period
 
 ---
 
@@ -56,6 +71,10 @@ Data spans from January of 2016 until April of 2017 for training, with the test 
 | LightGBM (Per-store model) | ~0.97    | ~3 |
 | ARIMA optimized                | ~0.43    | ~15000          |
 | SARIMAX optimized              | ~0.85    | ~7250         |
+
+Adding per-store identity + lag features massively boosts accuracy. SARIMAX captures seasonality better than ARIMA, but LightGBM dominates once given engineered features.
+
+---
 
 ## Plots
 
